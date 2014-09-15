@@ -54,7 +54,47 @@ test <- test[, -noVar]
 
 finalTesting <- finalTesting[, -c(1, 3:5)]
 finalTesting <- finalTesting[, -noVar]
+
+rm(noVar)
 ```
 
 ``` {r LDA}
-modelFit <- train(classe ~ ., data=train, preProcess = "BoxCox", method="lda")
+#trainSample <- train[sample(1:nrow(train), 500, replace=FALSE),]
+preObj <- preProcess(train[,c(-1, -55)], method="BoxCox")
+trainBoxCox <- predict(preObj, train[,c(-1, -55)])
+trainBoxCox <- cbind(train$user_name, trainBoxCox, train$classe)
+names(trainBoxCox) <- names(train)
+
+modelFitLDA <- train(classe ~ ., data=trainBoxCox, method="lda",
+                  trControl = trainControl(method="cv", number=10))
+modelFitLDA
+``` 
+
+``` {r tree}
+modelFitTree <- train(classe ~ ., data=train, method="rpart", 
+                  trControl = trainControl(method="cv", number=10))
+modelFitTree
+
+modelFitRf <- train(classe ~ ., data=train, method="rf", 
+                  trControl = trainControl(method="cv", number=10))
+modelFitRf # use this one
+
+modelFitRf2 <- train(classe ~ ., data=train, method="rf")
+modelFitRf2
+
+pred <- predict(modelFitRf2, test)
+table(pred, test$classe)
+
+pred2 <- predict(modelFitRf2, finalTesting)
+pred2
+
+answers <- as.vector(pred2)
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
