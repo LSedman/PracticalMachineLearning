@@ -33,6 +33,7 @@ if (!file.exists("pml-testing.csv")) {
 
 data <- read.csv("pml-training.csv")
 finalTesting <- read.csv("pml-testing.csv")
+rm(url1, url2)
 ```
 
 In order to later estimate how well the chosen prediction model would perform
@@ -92,7 +93,7 @@ classification tree analysis. During model fitting, I used 10-fold
 cross-validation to select the optimal model across tuning parameters. Namely,
 cross-validation provides an estimate for out-of-sample accuracy, which can be
 used for choosing the best model. The testing error of the best model can 
-then be validated fron the test set. However, this should be done only once, 
+then be validated using the test set. However, this should be done only once and
 using only one model, because otherwise the test set would be used for training
 and this could result in overfitting.
 
@@ -101,6 +102,17 @@ set.seed(27)
 modelFitTree <- train(classe ~ ., data=train, method="rpart", tuneLength=50,
                   trControl = trainControl(method="cv", number=10))
 old.par <- par()
+
+# Results
+modelFitTree$results[1:10,]
+
+# Out-of-sample error
+1 - modelFitTree$results[4,2]
+
+# The best tuning parameter
+modelFitTree$bestTune
+
+
 par(mfrow=c(1,2), oma = c(0, 0, 3, 0), mar= c(4, 4, 0.5, 2))
 plot(modelFitTree$results[,1], modelFitTree$results[,2], type="b", lwd=2, 
      col="royalblue", xlab="Complexity parameter", 
@@ -118,12 +130,13 @@ mtext("Figure 2. Classification Tree", outer=TRUE, cex = 1.5)
 ```
 
 As shown in the left panel of Figure 1, the out-of-sample accuracy estimated by 
-cross-validation was largest when the smallest complexity parameter (cp) was 
-small. The accuracy of the model seemed to level off at approx 0.96 (Figure one,
+cross-validation was largest when the complexity parameter (cp) was small. The 
+accuracy of the model seemed to level off at approx 0.96 (Figure one,
 right panel). The chosen model, with a complexity parameter of 
-`r as.numeric(round(modelFitTree$bestTune, 6))` and accuracy of 
-`r round(modelFitTree$results[4,2], 3)`, yielded a large and complex tree 
-(Figure 2). It's a pretty good result, but can we do better?
+`r as.numeric(round(modelFitTree$bestTune, 6))` had an accuracy of 
+`r round(modelFitTree$results[4,2], 3)` and estimated out-of-sample error rate
+of `r 1 - (round(modelFitTree$results[4,2], 3))`, and yielded a large and 
+complex tree (Figure 2). It's quite an accurate result, but can we do better?
 
 I next fitted the data to random forest models, which build a number
 of decision trees on bootstrapped training samples. Each time a split in a tree
@@ -136,6 +149,11 @@ more accurate results.
 set.seed(27)
 modelFitRf <- train(classe ~ ., data=train, method="rf", 
                  trControl = trainControl(method="cv", number=10))
+modelFitRf
+
+# Out-of-sample error
+1 - modelFitRf$results[2,2]
+
 par(old.par)
 plot(modelFitRf$results[,1], modelFitRf$results[,2], type="b", lwd=2, 
      col="royalblue", xlab="Number of Randomly Selected Predictors", 
@@ -145,9 +163,10 @@ plot(modelFitRf$results[,1], modelFitRf$results[,2], type="b", lwd=2,
 
 The cross-validated accuracy of the best model, with 
 `r as.numeric(modelFitRf$bestTune)` variables randomly sampled as candidates at 
-each split (mtry), was `r round(modelFitRf$results[2,2], 3)` (Figure 3). This is
-an improvement compared to the the accuracy of 0.961 from the best 
-classification tree. 
+each split (mtry = 30), was `r round(modelFitRf$results[2,2], 3)` (Figure 3). 
+This corresponds to an out-of-sample error rate of 
+`r 1 - (round(modelFitRf$results[2,2], 3))`. This is an improvement compared to 
+the error rate from the best classification tree. 
 
 Next, I validated the accuracy and error of the best random forest model using
 the test set I set aside from the whole dataset.
@@ -160,14 +179,14 @@ accuracy <- 1 - error
 ```
 
 Using the best random forest model to predict the test set classes yielded in
-an error rate of `r error` and accuracy of `r accuracy`, which is very similar 
-to the accuracy estimated by cross-validation.
+an error rate of `r error` and accuracy of `r accuracy`, which are very similar 
+to the accuracy and error estimated by cross-validation.
 
 The final goal of the analysis was to predict the exercise quality classes of
-20 new observations. Because the best random forest model would yield onen error 
+20 new observations. Because the best random forest model would yield one error 
 for approx. 1 in 500 test observations, I considered this model accurate enough
 for making the final predictions. Each answer can be written to an individual 
-text file.
+text file with the code below.
 
 ``` {r finalPredictions}
 pred2 <- predict(modelFitRf, finalTesting)
