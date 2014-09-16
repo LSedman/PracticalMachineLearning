@@ -1,11 +1,23 @@
 ---
 title: "Practical Machine Learning Course Project"
 author: "Laura Sedman"
-date: "09/13/2014"
+date: "16 September 2014"
 output: html_document
 ---
 
+Human activity recognition analyses have usually focused on identifying the type
+of activity performed. In contrast, the weight lifting exercise dataset [1] can
+be used to investigate how well an exercise was performed. The dataset consists 
+of data from accelerometers on the belt, forearm, arm, and dumbell of six 
+participants, who were asked to perform barbell lifts correctly and incorreclty
+in five different ways. More information about the dataset can be found here:
+http://groupware.les.inf.puc-rio.br/har
 
+The aim of this project was build a model that could predict how well the 
+participants performed the exercise.
+
+The first step was to download and read in the data that I would use to build a 
+prediction model, and a final testing set on which to apply the model.
 
 ```{r getData}
 url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
@@ -23,6 +35,9 @@ data <- read.csv("pml-training.csv")
 finalTesting <- read.csv("pml-testing.csv")
 ```
 
+In order to later estimate how well the chosen prediction model would perform
+on new data, I split the original dataset into a training and test partition, 
+with 13737 and 5885 observations, respectively.
 
 ```{r splitData}
 
@@ -36,8 +51,22 @@ rm(inTrain)
 rm(data)
 ```
 
-``` {r exploreData and preprocess}
+I then explored the training set using the str and summary functions. Because
+this would output a large amount of text, the results were not displayed here.
+
+``` {r exploreData, results='hide'}
 str(train)
+summary(train)
+```
+
+I noticed that many of the 159 variables are primarily NAs. Because these 
+variables would not be suitable for building the model, I decided to remove them
+from the training set as well as both of the test sets. In addition, I removed 
+the variables "X" (observation number) and three timestamp-related variables. 
+Finally, I identified and removed predictors with very low variance, yielding a 
+total of 54 predictors.
+
+``` {r preprocess}
 NAs <- colSums(is.na(train))
 NAs <- names(subset(NAs, NAs != 0))
 train <- train[ , !names(train) %in% NAs] 
@@ -58,43 +87,109 @@ finalTesting <- finalTesting[, -noVar]
 rm(noVar)
 ```
 
-``` {r LDA}
-#trainSample <- train[sample(1:nrow(train), 500, replace=FALSE),]
-preObj <- preProcess(train[,c(-1, -55)], method="BoxCox")
-trainBoxCox <- predict(preObj, train[,c(-1, -55)])
-trainBoxCox <- cbind(train$user_name, trainBoxCox, train$classe)
-names(trainBoxCox) <- names(train)
-
-modelFitLDA <- train(classe ~ ., data=trainBoxCox, method="lda",
-                  trControl = trainControl(method="cv", number=10))
-modelFitLDA
-``` 
+I then proceeded to try different methods of modelling. I first used
+classification tree analysis. During model fitting, I used 10-fold 
+cross-validation to select the optimal model across tuning parameters. Namely,
+cross-validation provides an estimate for out-of-sample accuracy, which can be
+used for choosing the best model. The testing error of the best model can 
+then be validated fron the test set. However, this should be done only once, 
+using only one model, because otherwise the test set would be used for training
+and this could result in overfitting.
 
 ``` {r tree}
-modelFitTree <- train(classe ~ ., data=train, method="rpart", 
+set.seed(27)
+modelFitTree <- train(classe ~ ., data=train, method="rpart", tuneLength=50,
                   trControl = trainControl(method="cv", number=10))
-modelFitTree
+old.par <- par()
+par(mfrow=c(1,2), oma = c(0, 0, 3, 0), mar= c(4, 4, 0.5, 2))
+plot(modelFitTree$results[,1], modelFitTree$results[,2], type="b", lwd=2, 
+     col="royalblue", xlab="Complexity parameter", 
+     ylab="Accuracy (Cross-Validation)")
+plot(log(modelFitTree$results[,1]), modelFitTree$results[,2], type="b", lwd=2, 
+     col="royalblue", xlab="Log of complexity parameter", 
+     ylab="Accuracy (Cross-Validation)")
+mtext("Figure 1. Accuracy of Classification Tree Models", outer=TRUE, cex = 1.5)
 
+library(rattle)
+par(mfrow=c(1,1), mar = c(2, 2, 0, 2), oma = c(0, 0, 3, 0))
+fancyRpartPlot(modelFitTree$finalModel)
+mtext("Figure 2. Classification Tree", outer=TRUE, cex = 1.5)
+
+```
+
+As shown in the left panel of Figure 1, the out-of-sample accuracy estimated by 
+cross-validation was largest when the smallest complexity parameter (cp) was 
+small. The accuracy of the model seemed to level off at approx 0.96 (Figure one,
+right panel). The chosen model, with a complexity parameter of 
+`r as.numeric(round(modelFitTree$bestTune, 6))` and accuracy of 
+`r round(modelFitTree$results[4,2], 3)`, yielded a large and complex tree 
+(Figure 2). It's a pretty good result, but can we do better?
+
+I next fitted the data to random forest models, which build a number
+of decision trees on bootstrapped training samples. Each time a split in a tree
+is considered, a random sample of predictors is chosen as split candidates from 
+the full set of predictors. Random forests are computationally much more
+intensive than classification trees, are less interpretable, but often yield 
+more accurate results.
+
+``` {r randomForest}
+set.seed(27)
 modelFitRf <- train(classe ~ ., data=train, method="rf", 
-                  trControl = trainControl(method="cv", number=10))
-modelFitRf # use this one
+                 trControl = trainControl(method="cv", number=10))
+par(old.par)
+plot(modelFitRf$results[,1], modelFitRf$results[,2], type="b", lwd=2, 
+     col="royalblue", xlab="Number of Randomly Selected Predictors", 
+     ylab="Accuracy (Cross-Validation)", 
+     main= "Figure 3. Accuracy of Random Forest Models")
+```
 
-modelFitRf2 <- train(classe ~ ., data=train, method="rf")
-modelFitRf2
+The cross-validated accuracy of the best model, with 
+`r as.numeric(modelFitRf$bestTune)` variables randomly sampled as candidates at 
+each split (mtry), was `r round(modelFitRf$results[2,2], 3)` (Figure 3). This is
+an improvement compared to the the accuracy of 0.961 from the best 
+classification tree. 
 
-pred <- predict(modelFitRf2, test)
-table(pred, test$classe)
+Next, I validated the accuracy and error of the best random forest model using
+the test set I set aside from the whole dataset.
 
-pred2 <- predict(modelFitRf2, finalTesting)
-pred2
+``` {r testSet}
+pred <- predict(modelFitRf, test)
+confMatrix <- table(pred, test$classe)
+error <- (1+1+1+4+2)/5885
+accuracy <- 1 - error
+```
+
+Using the best random forest model to predict the test set classes yielded in
+an error rate of `r error` and accuracy of `r accuracy`, which is very similar 
+to the accuracy estimated by cross-validation.
+
+The final goal of the analysis was to predict the exercise quality classes of
+20 new observations. Because the best random forest model would yield onen error 
+for approx. 1 in 500 test observations, I considered this model accurate enough
+for making the final predictions. Each answer can be written to an individual 
+text file.
+
+``` {r finalPredictions}
+pred2 <- predict(modelFitRf, finalTesting)
 
 answers <- as.vector(pred2)
 
+# Function for writing each answer to an individual file.
 pml_write_files = function(x){
   n = length(x)
   for(i in 1:n){
     filename = paste0("problem_id_",i,".txt")
-    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    write.table(x[i], file=filename, quote=FALSE, row.names=FALSE,
+                col.names=FALSE)
   }
 }
-pml_write_files(answers)
+
+#pml_write_files(answers)  #Uncomment to write files.
+```
+
+**References**
+
+[1] Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative 
+Activity Recognition of Weight Lifting Exercises. Proceedings of 4th 
+International Conference in Cooperation with SIGCHI (Augmented Human '13). 
+Stuttgart, Germany: ACM SIGCHI, 2013.
