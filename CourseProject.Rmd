@@ -60,7 +60,7 @@ str(train)
 summary(train)
 ```
 
-I noticed that many of the 159 variables are primarily NAs. Because these 
+I noticed that several of the 159 variables contain many NAs. Because these 
 variables would not be suitable for building the model, I decided to remove them
 from the training set as well as both of the test sets. In addition, I removed 
 the variables "X" (observation number) and three timestamp-related variables. 
@@ -126,7 +126,6 @@ library(rattle)
 par(mfrow=c(1,1), mar = c(2, 2, 0, 2), oma = c(0, 0, 3, 0))
 fancyRpartPlot(modelFitTree$finalModel)
 mtext("Figure 2. Classification Tree", outer=TRUE, cex = 1.5)
-
 ```
 
 As shown in the left panel of Figure 1, the out-of-sample accuracy estimated by 
@@ -150,7 +149,10 @@ set.seed(27)
 modelFitRf <- train(classe ~ ., data=train, method="rf", 
                  trControl = trainControl(method="cv", number=10))
 modelFitRf
-
+# Best mtry
+modelFitRf$bestTune
+# Accuracy
+modelFitRf$results[2,2]
 # Out-of-sample error
 1 - modelFitRf$results[2,2]
 
@@ -165,7 +167,7 @@ The cross-validated accuracy of the best model, with
 `r as.numeric(modelFitRf$bestTune)` variables randomly sampled as candidates at 
 each split (mtry = 30), was `r round(modelFitRf$results[2,2], 3)` (Figure 3). 
 This corresponds to an out-of-sample error rate of 
-`r 1 - (round(modelFitRf$results[2,2], 3))`. This is an improvement compared to 
+`r 1 - (round(modelFitRf$results[2,2], 3))`, and is an improvement compared to 
 the error rate from the best classification tree. 
 
 Next, I validated the accuracy and error of the best random forest model using
@@ -174,8 +176,10 @@ the test set I set aside from the whole dataset.
 ``` {r testSet}
 pred <- predict(modelFitRf, test)
 confMatrix <- table(pred, test$classe)
+confMatrix
 error <- (1+1+1+4+2)/5885
 accuracy <- 1 - error
+error; accuracy
 ```
 
 Using the best random forest model to predict the test set classes yielded in
