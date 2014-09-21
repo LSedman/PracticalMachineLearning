@@ -95,7 +95,7 @@ cross-validation provides an estimate for out-of-sample accuracy, which can be
 used for choosing the best model. The testing error of the best model can 
 then be validated using the test set. However, this should be done only once and
 using only one model, because otherwise the test set would be used for training
-and this could result in overfitting.
+and this could result in overfitting of the data.
 
 ``` {r tree}
 set.seed(27)
