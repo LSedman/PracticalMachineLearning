@@ -144,7 +144,7 @@ the full set of predictors. Random forests are computationally much more
 intensive than classification trees, are less interpretable, but often yield 
 more accurate results.
 
-``` {r randomForest}
+``` {r randomForest, warning=FALSE}
 set.seed(27)
 modelFitRf <- train(classe ~ ., data=train, method="rf", 
                  trControl = trainControl(method="cv", number=10))
